@@ -1,23 +1,21 @@
-// 무거운 경로 : 정점 u에서 자식으로 가는 간선 중 서브 트리의 크기가 가장 큰 간선들을 이어놓은 것
 // 루트 정점에서 어떤 정점까지의 무거운 경로의 개수는 O(logN)개
-// 세그 트리 업데이트 및 쿼리는 O((logN)^2)
+// u, v 경로 상의 쿼리는 O((logN)^2)
 
-const int INF = 1e9;
 const int MX = 1e5;
 
-int tree[400000];
+int tree[MX * 4];
 int seg_query(int l, int r, int no, int nl, int nr) {
-	if (r <= nl || nr <= l) return -INF;
+	if (r <= nl || nr <= l) return 0;
 	if (l <= nl && nr <= r) return tree[no];
 	int mid = (nl + nr) / 2;
-	return max(seg_query(l, r, 2 * no, nl, mid), seg_query(l, r, 2 * no + 1, mid, nr));
+	return seg_query(l, r, 2 * no, nl, mid) + seg_query(l, r, 2 * no + 1, mid, nr);
 }
 int seg_query(int l, int r, int n) { return seg_query(l, r, 1, 0, n); }
 int seg_update(int idx, int val, int no, int nl, int nr) {
 	if (idx < nl || nr <= idx) return tree[no];
 	if (nl + 1 == nr && nl == idx) return tree[no] = val;
 	int mid = (nl + nr) / 2;
-	return tree[no] = max(seg_update(idx, val, 2 * no, nl, mid), seg_update(idx, val, 2 * no + 1, mid, nr));
+	return tree[no] = seg_update(idx, val, 2 * no, nl, mid) + seg_update(idx, val, 2 * no + 1, mid, nr);
 }
 int seg_update(int idx, int val, int n) { return seg_update(idx, val, 1, 0, n); }
 
@@ -38,13 +36,16 @@ int dfs(int v) {
 	int size = 1;
 	int max_child_size = 0;
 
-	for (int next : adj[v]) if (next != parent[v]) {
+	for (int next : adj[v]) {
+		if (next == parent[v]) {
+			continue;
+		}
 		parent[next] = v;
 		depth[next] = depth[v] + 1;
-		
+
 		int next_size = dfs(next);
 		size += next_size;
-		
+
 		if (max_child_size < next_size) {
 			max_child_size = next_size;
 			heavy[v] = next;
@@ -59,14 +60,16 @@ void decompose(int v, int h) {
 	pos[v] = pcnt++;
 
 	// v가 리프노드가 아니라면 무거운 간선을 따라서 경로 확장
-	if (heavy[v] != -1)
+	if (heavy[v] != -1) {
 		decompose(heavy[v], h);
-	
+	}
+
 	// 가벼운 간선 탐색
 	// 가벼운 간선은 그가 속한 경로의 head 간선이다.
-	for (int next : adj[v]) if (next != parent[v]) {
-		if (next != heavy[v])
+	for (int next : adj[v]) {
+		if (next != parent[v] && next != heavy[v]) {
 			decompose(next, next);
+		}
 	}
 }
 
@@ -88,24 +91,27 @@ void update(int v, int c) {
 	seg_update(pos[v], c, MX);
 }
 
-// u에서 v로 가는 경로 간선의 비용 중 최대값을 구한다.
+// u에서 v로 가는 경로 간선의 비용의 합을 구한다.
 int query(int u, int v) {
-	int maxv = 0;	
-	int path_maxv;
+	int sum = 0;
+	int path_sum;
 
 	// u와 v가 다른 경로에 속함
-	for (; head[u] != head[v]; v = parent[head[v]]) {
-		if (depth[head[u]] > depth[head[v]])
+	while (head[u] != head[v]) {
+		if (depth[head[u]] > depth[head[v]]) {
 			swap(u, v);
-		path_maxv = seg_query(pos[head[v]], pos[v] + 1, MX);
-		maxv = max(maxv, path_maxv);
+		}
+		path_sum = seg_query(pos[head[v]], pos[v] + 1, MX);
+		sum += path_sum;
+		v = parent[head[v]];
 	}
-	
+
 	// u와 v가 같은 경로에 속함
-	if (depth[u] > depth[v])
+	if (depth[u] > depth[v]) {
 		swap(u, v);
-	path_maxv = seg_query(pos[u] + 1, pos[v] + 1, MX);
-	maxv = max(maxv, path_maxv);
-	
-	return maxv;
+	}
+	path_sum = seg_query(pos[u] + 1, pos[v] + 1, MX);
+	sum += path_sum;
+
+	return sum;
 }
